@@ -14,7 +14,7 @@ namespace SyntraxCore.Util
     {
         public static MyFont FontFromString(string txt)
         {
-            Regex fontRegex = new Regex("\\(\\s*'([a-zA-Z]+)'\\s*,\\s*(\\d+)\\s*,\\s*'([a-zA-Z ]+)'\\s*\\)";
+            Regex fontRegex = new Regex("\\(\\s*'([a-zA-Z]+)'\\s*,\\s*(\\d+)\\s*,\\s*'([a-zA-Z ]+)'\\s*\\)");
             Match matcher = fontRegex.Match(txt.Trim());
             if (!matcher.Success)
             {

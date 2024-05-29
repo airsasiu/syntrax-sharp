@@ -1,5 +1,7 @@
 ﻿
 
+using IniParser;
+using IniParser.Model;
 using System.Drawing;
 
 namespace SyntraxCore.Style
@@ -31,34 +33,107 @@ namespace SyntraxCore.Style
             new NodeHexStyle(),
         };
 
-        public StyleConfig()
+        public StyleConfig(double scale, bool transparency)
         {
+            Scale = scale;
+            Transparency = transparency;
 
+            var parser = new FileIniDataParser();
+            IniData iniData = parser.ReadFile("syntrax-sharp.ini");
+            if (iniData != null)
+            {
+                ParseStyleArgs(iniData);
+            }
         }
 
-        public float GetScale()
+        public StyleConfig(double scale, bool transparency, string stylePath)
         {
-            return 1.0f;
+            Scale = scale;
+            Transparency = transparency;
+            var parser = new FileIniDataParser();
+            IniData iniData = parser.ReadFile(stylePath);
+            if (iniData != null)
+            {
+                ParseStyleArgs(iniData);
+            }
+            foreach (var section in iniData.Sections)
+            {
+                if (section.SectionName == "style")
+                {
+                    continue;
+                }
+                NodeStyle ns = new NodeStyle();
+                ns.Name = section.SectionName;
+                ParseNodeStyle(iniData, ns);
+                NodeStyles.Add(ns);
+            }
         }
 
-        internal List<NodeStyle> GetNodeStyles()
+        private void ParseStyleArgs(IniData iniData)
         {
-            throw new NotImplementedException();
+            if (iniData.Sections.ContainsSection("style") == false)
+            {
+                return;
+            }
+            LineWidth = int.Parse(iniData["style"]["line_width"]);
+            OutLineWidth = int.Parse(iniData["style"]["outline_width"]);
+            Padding = int.Parse(iniData["style"]["padding"]);
+            LineColor = GetRGBColor(iniData["style"]["line_color"]);
+            MaxRadius = int.Parse(iniData["style"]["max_radius"]);
+            HSep = int.Parse(iniData["style"]["h_sep"]);
+            VSep = int.Parse(iniData["style"]["v_sep"]);
+            Arrows = bool.Parse(iniData["style"]["arrows"]);
+            TitlePos = Enum.Parse<TitlePosition>(iniData["style"]["title_pos"]);
+            BulletFillColor = GetRGBColor(iniData["style"]["bullet_fill"]);
+            TextColor = GetRGBColor(iniData["style"]["text_color"]);
+            Shadow = bool.Parse(iniData["style"]["shadow"]);
+            ShadowFillColor = GetRGBAColor(iniData["style"]["text_color"]);
+            TitleFont = GetFont(iniData["style"]["title_font"]);
         }
 
-        internal int GetPadding()
+        private void ParseNodeStyle(IniData iniData, NodeStyle ns)
         {
-            return 5;
+            ns.Pattern = iniData[ns.Name]["pattern"];
+            ns.Shape = iniData[ns.Name]["shape"];
+            ns.Font = GetFont(iniData[ns.Name]["font"]);
+            ns.TextColor = GetRGBColor(iniData[ns.Name]["text_color"]);
         }
 
-        internal Color GetTextColor()
+        private MyFont GetFont(string fontStr)
         {
-            throw new NotImplementedException();
+            var n = fontStr.Length;
+            var strs = fontStr.Substring(1, n - 2).Split();
+            return new MyFont(strs[0], Enum.Parse<FontStyle>(strs[2]), double.Parse(strs[1]));
         }
 
-        internal string GetTitleFont()
+        private Color GetRGBColor(string color)
         {
-            throw new NotImplementedException();
+            var colors = color.Split(',');
+            return Color.FromArgb(int.Parse(colors[0].Substring(1)),
+                int.Parse(colors[1]),
+                int.Parse(string.Join("", colors[2].Reverse().Skip(1).Reverse())));
+        }
+
+        private Color GetRGBAColor(string color)
+        {
+            var colors = color.Split(',');
+            return Color.FromArgb(
+                int.Parse(string.Join("", colors[3].Reverse().Skip(1).Reverse())),
+                int.Parse(colors[0].Substring(1)),
+                int.Parse(colors[1]),
+                int.Parse(colors[2]));
+        }
+
+        public NodeStyle GetNodeStyle(string txt)
+        {
+            foreach (var ns in NodeStyles)
+            {
+                if (ns.Match(txt))
+                {
+                    return ns;
+                }
+            }
+            return DefNodeStyle;
         }
     }
 }
