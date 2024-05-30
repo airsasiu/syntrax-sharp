@@ -13,15 +13,88 @@ namespace SyntraxCore
 {
     public class SVGCanvas
     {
-        private StyleConfig style;
-        private List<Element> elements = new List<Element>();
-        private Dictionary<string, int> tagCnt = new Dictionary<string, int>();
+        private StyleConfig _style;
+        private List<Element> _elements = new List<Element>();
+        public Dictionary<string, int> _tagCnt = new Dictionary<string, int>();
+
+        public SVGCanvas(StyleConfig style)
+        {
+            _style = style;
+        }
+
+        public string NewTag(string prefix, string suffix)
+        {
+            string f = prefix + "___" + suffix;
+            int value = 0;
+            if (_tagCnt.ContainsKey(f))
+            {
+                value = _tagCnt[f];
+            }
+            _tagCnt[f]++;
+            return prefix + value + suffix;
+        }
+
+        public void AddElement(Element element)
+        {
+            _elements.Add(element);
+        }
+
+        public void AddElementTag(string addTag, string tag)
+        {
+            foreach (Element e in _elements)
+            {
+                if (e.IsTagged(tag))
+                {
+                    e.AddTag(addTag);
+                }
+            }
+        }
+
+        public void DropElementTag(string tag)
+        {
+            foreach (Element e in _elements)
+            {
+                if (e.IsTagged(tag))
+                {
+                    e.DelTag(tag);
+                }
+            }
+        }
+
+        public void MoveElement(string tag, int dx, int dy)
+        {
+            foreach (Element e in _elements)
+            {
+                if (e.IsTagged(tag))
+                {
+                    e.Start.Offset(dx, dy);
+                    e.End.Offset(dx, dy);
+                }
+            }
+        }
+
+        public void ScaleElement(string tag, double scale)
+        {
+            foreach(Element e in _elements)
+            {
+                if (e.IsTagged(tag))
+                {
+                    e.Scale(scale);
+                }
+            }
+        }
+
+        public string GetCanvasTag()
+        {
+            return _elements.FirstOrDefault()?.GetAnyTag();
+        }
+
 
         public (Point, Point) GetBoundingBoxByTag(string tag)
         {
             int sx = 0, sy = 0;
             int ex = 0, ey = 0;
-            foreach (Element e in elements)
+            foreach (Element e in _elements)
             {
                 if (e.IsTagged(tag))
                 {
@@ -42,25 +115,25 @@ namespace SyntraxCore
         public string GenerateSVG()
         {
             StringBuilder sb = new StringBuilder();
-            double scale = style.GetScale();
+            double scale = _style.Scale;
 
             var res = GetBoundingBoxByTag("all");
 
             // move to picture to (0, 0)
-            MoveByTag("all", -res.Item1.X, -res.Item1.Y);
-            ScaleByTag("all", scale);
-            MoveByTag("all", style.GetPadding(), style.GetPadding());
+            MoveElement("all", -res.Item1.X, -res.Item1.Y);
+            ScaleElement("all", scale);
+            MoveElement("all", _style.Padding, _style.Padding);
 
             res = GetBoundingBoxByTag("all");
             var end = res.Item2;
 
-            int w = end.X + style.GetPadding();
-            int h = end.Y + style.GetPadding();
+            int w = end.X + _style.Padding;
+            int h = end.Y + _style.Padding;
 
             // collect fonts
-            Dictionary<string, (string, Color)> fonts = new Dictionary<string, (string, Color)>();
-            fonts["title_font"] = (style.GetTitleFont(), style.GetTextColor());
-            foreach (NodeStyle ns in style.GetNodeStyles())
+            Dictionary<string, (MyFont, Color)> fonts = new Dictionary<string, (MyFont, Color)>();
+            fonts["title_font"] = (_style.TitleFont, _style.TextColor);
+            foreach (NodeStyle ns in _style.NodeStyles)
             {
                 fonts.Add(ns.Name + "_font", (ns.Font, ns.TextColor));
             }
@@ -81,41 +154,41 @@ namespace SyntraxCore
             foreach (var fontPair in fonts)
             {
                 string fontName = fontPair.Key;
-                string fontFamily = fontPair.getValue().f.getName();
-                string fontSize = Integer.tostring((int)(fontPair.getValue().f.getSize() * scale));
+                string fontFamily = fontPair.Value.Item1.Name;
+                string fontSize = (fontPair.Value.Item1.Size * scale).ToString();
                 string fontWeight = "normal";
-                if ((fontPair.getValue().f.getStyle() & Font.BOLD) == Font.BOLD)
+                if ((fontPair.Value.Item1.Style & FontStyle.Bold) == FontStyle.Bold)
                 {
                     fontWeight = "bold";
                 }
                 string fontStyle = "normal";
-                if ((fontPair.getValue().f.getStyle() & Font.ITALIC) == Font.ITALIC)
+                if ((fontPair.Value.Item1.Style & FontStyle.Italic) == FontStyle.Italic)
                 {
                     fontStyle = "italic";
                 }
 
-                string hex = stringUtils.toHex(fontPair.getValue().s);
+                string hexColor = StringUtils.ToHex(fontPair.Value.Item2);
 
                 sb.Append(".").Append(fontName).Append(" ");
-                if (!"title_font".equals(fontName))
+                if (fontName != "title_font")
                 {
-                    sb.Append("{fill:").Append(hex).Append("; text-anchor:middle;\n");
+                    sb.Append("{fill:").Append(hexColor).Append("; text-anchor:middle;\n");
                 }
                 else
                 {
-                    switch (style.TitlePos)
+                    switch (_style.TitlePos)
                     {
                         case TitlePosition.BottomLeft:
                         case TitlePosition.TopLeft:
-                            sb.Append("{fill:").Append(hex).Append("; text-anchor:start;\n");
+                            sb.Append("{fill:").Append(hexColor).Append("; text-anchor:start;\n");
                             break;
                         case TitlePosition.BottomCenter:
                         case TitlePosition.TopCenter:
-                            sb.Append("{fill:").Append(hex).Append("; text-anchor:middle;\n");
+                            sb.Append("{fill:").Append(hexColor).Append("; text-anchor:middle;\n");
                             break;
                         case TitlePosition.BottomRight:
                         case TitlePosition.TopRight:
-                            sb.Append("{fill:").Append(hex).Append("; text-anchor:end;\n");
+                            sb.Append("{fill:").Append(hexColor).Append("; text-anchor:end;\n");
                             break;
                     }
                 }
@@ -141,45 +214,22 @@ namespace SyntraxCore
             sb.Append("</marker>\n</defs>\n");
 
             // elements
-            if (!style.isTransparent())
+            if (!_style.Transparency)
             {
                 sb.Append("<rect width=\"100%\" height=\"100%\" fill=\"white\"/>\n");
             }
-            foreach (Element e in elements)
+            foreach (Element e in _elements)
             {
 
-                if (style.isShadow())
+                if (_style.Shadow)
                 {
-                    e.AddShadow(sb, style);
+                    e.AddShadow(sb, _style);
                 }
-                e.toSVG(sb, style);
+                e.ToSVG(sb, _style);
             }
             // end
             sb.Append("</svg>\n");
-            return sb.tostring();
-        }
-
-        private void ScaleByTag(string tag, double scale)
-        {
-            foreach (Element e in elements)
-            {
-                if (e.IsTagged(tag))
-                {
-                    e.Scale(scale);
-                }
-            }
-        }
-
-        private void MoveByTag(string tag, int dx, int dy)
-        {
-            foreach (Element e in elements)
-            {
-                if (e.IsTagged(tag))
-                {
-                    e.Start.Offset(dx, dy);
-                    e.End.Offset(dx, dy);
-                }
-            }
+            return sb.ToString();
         }
     }
 }
